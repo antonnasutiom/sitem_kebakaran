@@ -1,0 +1,46 @@
+#include <DHT.h>
+
+#define DHTPIN 2         // Pin data DHT11
+#define DHTTYPE DHT11    // Tipe DHT11
+
+#define MQ2PIN A0        // Sensor gas di pin analog A0
+#define LEDPIN 8         // Pin output LED
+#define BUZZERPIN 9      // Pin output buzzer
+
+DHT dht(DHTPIN, DHTTYPE);
+
+const float batasSuhu = 50.0;  // Batas suhu (derajat Celsius)
+const int batasGas = 400;      // Batas nilai analog gas
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+
+  pinMode(LEDPIN, OUTPUT);
+  pinMode(BUZZERPIN, OUTPUT);
+
+  digitalWrite(LEDPIN, LOW);
+  digitalWrite(BUZZERPIN, LOW);
+
+  Serial.println("Sistem Pembakaran Siap...");
+}
+
+void loop() {
+  float suhu = dht.readTemperature();
+  int gas = analogRead(MQ2PIN);
+
+  Serial.print("Suhu: ");
+  Serial.print(suhu);
+  Serial.print(" °C | Gas: ");
+  Serial.println(gas);
+
+  if (suhu >= batasSuhu || gas >= batasGas) {
+    digitalWrite(LEDPIN, HIGH);
+    digitalWrite(BUZZERPIN, HIGH);
+  } else {
+    digitalWrite(LEDPIN, LOW);
+    digitalWrite(BUZZERPIN, LOW);
+  }
+
+  delay(2000);
+}
