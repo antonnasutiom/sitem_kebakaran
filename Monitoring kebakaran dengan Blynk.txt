@@ -1,0 +1,102 @@
+#include <DHT.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+
+// Ganti dengan WiFi dan Auth Token kamu
+char auth[] = "ISI_DENGAN_AUTH_TOKEN_BLYNK";
+char ssid[] = "NAMA_WIFI";
+char pass[] = "PASSWORD_WIFI";
+
+// DHT11
+#define DHTPIN D4
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+// MQ2 Gas Sensor
+#define MQ2PIN A0
+
+// LED dan Buzzer
+#define LED_HIJAU D2
+#define LED_KUNING D1
+#define LED_MERAH D6
+#define BUZZERPIN D7
+
+// LCD I2C
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Batas
+const float batasSuhu = 50.0;
+const int batasGasBahaya = 400;
+const int batasGasWaspada = 250;
+
+void setup() {
+  Serial.begin(9600);
+
+  // Mulai Blynk dan WiFi
+  Blynk.begin(auth, ssid, pass);
+
+  dht.begin();
+  pinMode(MQ2PIN, INPUT);
+  pinMode(LED_HIJAU, OUTPUT);
+  pinMode(LED_KUNING, OUTPUT);
+  pinMode(LED_MERAH, OUTPUT);
+  pinMode(BUZZERPIN, OUTPUT);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Sistem Kebakaran");
+  delay(2000);
+}
+
+void loop() {
+  Blynk.run(); // Wajib untuk komunikasi Blynk
+
+  float suhu = dht.readTemperature();
+  int gas = analogRead(MQ2PIN);
+
+  Serial.print("Suhu: ");
+  Serial.print(suhu);
+  Serial.print(" °C | Gas: ");
+  Serial.println(gas);
+
+  // Reset indikator
+  digitalWrite(LED_HIJAU, LOW);
+  digitalWrite(LED_KUNING, LOW);
+  digitalWrite(LED_MERAH, LOW);
+  digitalWrite(BUZZERPIN, LOW);
+
+  String status = "AMAN";
+
+  if (suhu >= batasSuhu || gas >= batasGasBahaya) {
+    digitalWrite(LED_MERAH, HIGH);
+    digitalWrite(BUZZERPIN, HIGH);
+    status = "BAHAYA!";
+  } else if (gas >= batasGasWaspada || suhu >= 35) {
+    digitalWrite(LED_KUNING, HIGH);
+    status = "WASPADA";
+  } else {
+    digitalWrite(LED_HIJAU, HIGH);
+  }
+
+  // Tampilkan ke LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("S:");
+  lcd.print(suhu, 1);
+  lcd.print((char)223); 
+  lcd.print("C G:");
+  lcd.print(gas);
+  lcd.setCursor(0, 1);
+  lcd.print("Status: ");
+  lcd.print(status);
+
+  // Kirim ke Blynk (Virtual Pins)
+  Blynk.virtualWrite(V0, suhu);
+  Blynk.virtualWrite(V1, gas);
+  Blynk.virtualWrite(V2, status);
+
+  delay(2000);
+}
