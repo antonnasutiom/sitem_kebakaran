@@ -1,68 +1,92 @@
-﻿#include <ESP8266WiFi.h>
-#include <BlynkSimpleEsp8266.h>
 #include <DHT.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
-char auth[] = "ISI_DENGAN_AUTH_TOKEN_BLYNK";
-char ssid[] = "NAMA_WIFI_KAMU";
-char pass[] = "PASSWORD_WIFI_KAMU";
-
-#define DHTPIN D4
+// === Konstanta dan Pin ===
+#define DHTPIN 2
 #define DHTTYPE DHT11
-DHT dht(DHTPIN, DHTTYPE);
+#define MQ2PIN A0
+#define FLAME_PIN 3
+#define LED_HIJAU 4
+#define LED_KUNING 5
+#define LED_MERAH 8
+#define BUZZERPIN 9
 
-// Sensor & Aktuator
-#define FLAME_SENSOR D5
-#define MQ2_SENSOR A0
-#define LED_HIJAU D1
-#define LED_KUNING D2
-#define LED_MERAH D3
-#define BUZZER D6
+// === Inisialisasi Sensor dan LCD ===
+DHT dht(DHTPIN, DHTTYPE);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// === Batas Sensor ===
+const float batasSuhu = 50.0;
+const int batasGasBahaya = 400;
+const int batasGasWaspada = 250;
 
 void setup() {
   Serial.begin(9600);
-  Blynk.begin(auth, ssid, pass);
   dht.begin();
-
-  pinMode(FLAME_SENSOR, INPUT);
+  
+  pinMode(MQ2PIN, INPUT);
+  pinMode(FLAME_PIN, INPUT);
   pinMode(LED_HIJAU, OUTPUT);
   pinMode(LED_KUNING, OUTPUT);
   pinMode(LED_MERAH, OUTPUT);
-  pinMode(BUZZER, OUTPUT);
+  pinMode(BUZZERPIN, OUTPUT);
+
+  digitalWrite(LED_HIJAU, LOW);
+  digitalWrite(LED_KUNING, LOW);
+  digitalWrite(LED_MERAH, LOW);
+  digitalWrite(BUZZERPIN, LOW);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Sistem Kebakaran");
+  delay(2000);
 }
 
 void loop() {
-  Blynk.run();
-
   float suhu = dht.readTemperature();
-  float hum = dht.readHumidity();
-  int flame = digitalRead(FLAME_SENSOR);
-  int gas = analogRead(MQ2_SENSOR);
+  int gas = analogRead(MQ2PIN);
+  int flame = digitalRead(FLAME_PIN); // 0 = api terdeteksi
 
-  // Kirim ke Blynk App
-  Blynk.virtualWrite(V0, suhu);
-  Blynk.virtualWrite(V1, hum);
-
-  String status = "AMAN";
+  Serial.print("Suhu: ");
+  Serial.print(suhu);
+  Serial.print(" °C | Gas: ");
+  Serial.print(gas);
+  Serial.print(" | Flame: ");
+  Serial.println(flame == 0 ? "TERDETEKSI" : "TIDAK");
 
   // Reset indikator
   digitalWrite(LED_HIJAU, LOW);
   digitalWrite(LED_KUNING, LOW);
   digitalWrite(LED_MERAH, LOW);
-  digitalWrite(BUZZER, LOW);
+  digitalWrite(BUZZERPIN, LOW);
 
-  if (flame == LOW || gas > 600 || suhu > 60) {
-    status = "BAHAYA!!!";
+  String status = "AMAN";
+
+  if (suhu >= batasSuhu || gas >= batasGasBahaya || flame == 0) {
     digitalWrite(LED_MERAH, HIGH);
-    digitalWrite(BUZZER, HIGH);
-    Blynk.logEvent("kebakaran", "Deteksi BAHAYA!!!"); // Butuh setup di Blynk Web
-  } else if (gas > 300 || suhu > 40) {
-    status = "WASPADA";
+    digitalWrite(BUZZERPIN, HIGH);
+    status = "BAHAYA!";
+  } else if (gas >= batasGasWaspada || suhu >= 35) {
     digitalWrite(LED_KUNING, HIGH);
+    status = "WASPADA";
   } else {
-    status = "AMAN";
     digitalWrite(LED_HIJAU, HIGH);
   }
-  // Kirim status ke Blynk
-  Blynk.virtualWrite(V2, status);
-  delay(1000);
+
+  // Tampilkan ke LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("S:");
+  lcd.print(suhu, 1);
+  lcd.print((char)223); // simbol derajat
+  lcd.print("C G:");
+  lcd.print(gas);
+
+  lcd.setCursor(0, 1);
+  lcd.print("Status: ");
+  lcd.print(status);
+
+  delay(2000);
 }
