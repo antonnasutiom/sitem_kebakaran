@@ -1,28 +1,40 @@
 #include <DHT.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
-#define DHTPIN 2         // Pin data DHT11
-#define DHTTYPE DHT11    // Tipe DHT11
-
-#define MQ2PIN A0        // Sensor gas di pin analog A0
-#define LEDPIN 8         // Pin output LED
-#define BUZZERPIN 9      // Pin output buzzer
-
+#define DHTPIN 2
+#define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
-const float batasSuhu = 50.0;  // Batas suhu (derajat Celsius)
-const int batasGas = 400;      // Batas nilai analog gas
+#define MQ2PIN A0
+#define LED_HIJAU 4
+#define LED_KUNING 5
+#define LED_MERAH 8
+
+#define BUZZERPIN 9
+
+// LCD 16x2 I2C
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Alamat I2C umum: 0x27
+
+const float batasSuhu = 50.0;
+const int batasGasBahaya = 400;
+const int batasGasWaspada = 250;
 
 void setup() {
   Serial.begin(9600);
   dht.begin();
 
-  pinMode(LEDPIN, OUTPUT);
+  pinMode(MQ2PIN, INPUT);
+  pinMode(LED_HIJAU, OUTPUT);
+  pinMode(LED_KUNING, OUTPUT);
+  pinMode(LED_MERAH, OUTPUT);
   pinMode(BUZZERPIN, OUTPUT);
 
-  digitalWrite(LEDPIN, LOW);
-  digitalWrite(BUZZERPIN, LOW);
-
-  Serial.println("Sistem Pembakaran Siap...");
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Sistem Kebakaran");
+  delay(2000);
 }
 
 void loop() {
@@ -34,13 +46,36 @@ void loop() {
   Serial.print(" °C | Gas: ");
   Serial.println(gas);
 
-  if (suhu >= batasSuhu || gas >= batasGas) {
-    digitalWrite(LEDPIN, HIGH);
+  // Reset indikator
+  digitalWrite(LED_HIJAU, LOW);
+  digitalWrite(LED_KUNING, LOW);
+  digitalWrite(LED_MERAH, LOW);
+  digitalWrite(BUZZERPIN, LOW);
+
+  String status = "AMAN";
+
+  if (suhu >= batasSuhu || gas >= batasGasBahaya) {
+    digitalWrite(LED_MERAH, HIGH);
     digitalWrite(BUZZERPIN, HIGH);
+    status = "BAHAYA!";
+  } else if (gas >= batasGasWaspada || suhu >= 35) {
+    digitalWrite(LED_KUNING, HIGH);
+    status = "WASPADA";
   } else {
-    digitalWrite(LEDPIN, LOW);
-    digitalWrite(BUZZERPIN, LOW);
+    digitalWrite(LED_HIJAU, HIGH);
   }
+  // Tampilkan ke LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("S:");
+  lcd.print(suhu, 1);
+  lcd.print((char)223); // simbol derajat
+  lcd.print("C G:");
+  lcd.print(gas);
+
+  lcd.setCursor(0, 1);
+  lcd.print("Status: ");
+  lcd.print(status);
 
   delay(2000);
 }
